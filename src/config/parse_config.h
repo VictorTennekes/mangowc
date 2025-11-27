@@ -108,6 +108,12 @@ typedef struct {
 	float refresh;		// 刷新率
 } ConfigMonitorRule;
 
+typedef struct ConfigVariable {
+	char *name;
+	char *value;
+	struct ConfigVariable *next;
+} ConfigVariable;
+
 // 修改后的宏定义
 #define CHVT(n)                                                                \
 	{                                                                          \
@@ -323,6 +329,8 @@ typedef struct {
 
 	ConfigEnv **env;
 	int env_count;
+
+	ConfigVariable *variables;
 
 	char **exec;
 	int exec_count;
@@ -2258,6 +2266,42 @@ void parse_option(Config *config, char *key, char *value) {
 	}
 }
 
+void parse_config_store_variable(Config *config, const char *key, const char *value) {
+	ConfigVariable *var = config->variables;
+
+	while (var) {
+		if (strcmp(var->name, key) == 0) {
+			free(var->value);
+			var->value = strdup(value);
+			return ;
+		}
+		var = var->next;
+	}
+
+	ConfigVariable *new_var = malloc(sizeof(ConfigVariable));
+	new_var->name = strdup(key);
+	new_var->value = strdup(value);
+	new_var->next = config->variables;
+	config->variables = new_var;
+}
+
+char *parse_config_expand_variable(Config *config, const char *value) {
+	if (value[0] != '$') {
+		return strdup(value);
+	}
+	const char *var_name = value + 1;
+
+	ConfigVariable *var = config->variables;
+	while (var) {
+		if (strcmp(var->name, var_name) == 0) {
+			return strdup(var->value);
+		}
+		var = var->next;
+	}
+	return strdup(value);
+
+}
+
 void parse_config_line(Config *config, const char *line) {
 	char key[256], value[256];
 	if (sscanf(line, "%255[^=]=%255[^\n]", key, value) != 2) {
@@ -2269,7 +2313,13 @@ void parse_config_line(Config *config, const char *line) {
 	trim_whitespace(key);
 	trim_whitespace(value);
 
-	parse_option(config, key, value);
+	if (key[0] == '$') {
+		parse_config_store_variable(config, key + 1, value);
+	} else {
+		char *expanded_value = parse_config_expand_variable(config, value);
+		parse_option(config, key, expanded_value);
+		free(expanded_value);
+	}
 }
 
 void parse_config_file(Config *config, const char *file_path) {
@@ -2961,7 +3011,13 @@ void set_default_key_bindings(Config *config) {
 	config->key_bindings_count += default_key_bindings_count;
 }
 
+<<<<<<< Updated upstream
 void parse_config(void) {
+=======
+static char *active_config_path = NULL;
+
+void parse_config(const char *cli_config_path) {
+>>>>>>> Stashed changes
 
 	char filename[1024];
 
@@ -3022,6 +3078,7 @@ void parse_config(void) {
 		snprintf(filename, sizeof(filename), "%s/.config/mango/config.conf",
 				 homedir);
 
+<<<<<<< Updated upstream
 		// 检查文件是否存在
 		if (access(filename, F_OK) != 0) {
 			// 如果文件不存在，则使用 /etc/mango/config.conf
@@ -3031,6 +3088,9 @@ void parse_config(void) {
 	} else {
 		// 使用 MANGOCONFIG 环境变量作为配置文件夹路径
 		snprintf(filename, sizeof(filename), "%s/config.conf", mangoconfig);
+=======
+		active_config_path = strdup(filename);
+>>>>>>> Stashed changes
 	}
 
 	set_value_default();
